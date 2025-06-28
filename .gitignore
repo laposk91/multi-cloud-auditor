@@ -1,5 +1,25 @@
 **/.terraform/*
 
+*.aws/
+*.bash_history
+*.bash_logout
+*.bash_profile
+*.bashrc
+*.cache/
+*.config/
+*.dotnet/
+*.gitconfig
+*.local/
+*.mozilla/
+*.pki/
+*.terraform.d/
+*.var/
+*.vscode/
+*.LICENSE.txt
+*.aws/
+*.awscliv2.zip
+*.terraform_1.8.5_linux_amd64.zip
+
 # .tfstate files
 *.tfstate
 *.tfstate.*.backup
