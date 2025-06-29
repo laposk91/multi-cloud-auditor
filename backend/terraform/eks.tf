@@ -1,3 +1,28 @@
+module "eks" {
+  source  = "terraform-aws-modules/eks/aws"
+  version = "20.10.0"
+
+  cluster_name    = "auditor-cluster"
+  cluster_version = "1.32"
+
+  vpc_id     = module.vpc.vpc_id
+  subnet_ids = module.vpc.private_subnets
+
+  enable_irsa = true  # Enables IAM Roles for Service Accounts
+
+  eks_managed_node_groups = {
+    general_nodes = {
+      min_size       = 1
+      max_size       = 3
+      instance_types = ["t3.small"]
+    }
+  }
+
+  tags = {
+    Project   = "Multi-Cloud Auditor"
+    Terraform = "true"
+  }
+}
 # create a complete EKS cluster control plane and worker nodes.
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
