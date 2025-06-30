@@ -1,5 +1,3 @@
-# .github/workflows/cicd.yml
-
 name: Continuous Integration and Deployment
 
 on:
@@ -91,6 +89,7 @@ jobs:
     # Only run this job for pushes to the main branch
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
+      # FIX: Added checkout step so the k8s directory is available
       - name: Checkout Code
         uses: actions/checkout@v4
 
@@ -125,4 +124,5 @@ jobs:
           
           # Wait for the new deployment to be rolled out successfully
           kubectl rollout status deployment/${{ env.K8S_DEPLOYMENT_NAME }}
+
 
