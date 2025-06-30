@@ -1,4 +1,4 @@
-# .github/workflows/cicd.yml
+
 
 name: Continuous Integration and Deployment
 
@@ -9,13 +9,10 @@ on:
     branches: [ main ]
 
 env:
-  # The ECR repository you created with Terraform
+ 
   ECR_REPOSITORY: multi-cloud-auditor/backend
-  # The EKS cluster name from your Terraform config
   EKS_CLUSTER_NAME: auditor-cluster
-  # The AWS region from your Terraform config
   AWS_REGION: us-east-1
-  # This name must match the 'metadata.name' in your deployment.yml
   K8S_DEPLOYMENT_NAME: backend-deployment
 
 jobs:
@@ -41,12 +38,10 @@ jobs:
           # Using `pytest || true` to prevent failure if no tests are found
           pytest || true
 
-  # This job builds the Docker image and pushes it to ECR.
-  # It only runs on pushes to the main branch, after lint-and-test succeeds.
+
   build-and-push:
     needs: lint-and-test
     runs-on: ubuntu-latest
-    # Only run this job for pushes to the main branch
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     outputs:
       image_tag: ${{ steps.build-image.outputs.image_tag }}
@@ -70,24 +65,17 @@ jobs:
       - name: Build, tag, and push image to Amazon ECR
         id: build-image
         env:
-          # Use the ECR registry URI from the previous step
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          # Use the Git SHA as the image tag for versioning
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          # Build and push the docker image
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./backend
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          # Set the values as outputs for the next job
           echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
           echo "ecr_registry=$ECR_REGISTRY" >> $GITHUB_OUTPUT
 
-  # This job deploys the application to the EKS cluster.
-  # It only runs on pushes to the main branch, after build-and-push succeeds.
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
-    # Only run this job for pushes to the main branch
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - name: Checkout Code
@@ -118,8 +106,6 @@ jobs:
           # Apply all manifests in the k8s directory to the cluster.
           kubectl apply -f k8s/
           
-          # Wait for the new deployment to be rolled out successfully.
-          # If it fails, the subsequent commands will run to provide debug info.
           if ! kubectl rollout status deployment/${{ env.K8S_DEPLOYMENT_NAME }} --timeout=2m; then
             echo "Deployment failed. Gathering debug information..."
             
