@@ -15,8 +15,11 @@ module "eks" {
   cluster_endpoint_private_access = true
   cluster_endpoint_public_access  = true
 
-  # IMPORTANT: This now dynamically uses your current IP address from main.tf
-  cluster_endpoint_public_access_cidrs = ["${chomp(data.http.my_ip.response_body)}/32"]
+  # FIX: Allow public access from any IP address for development.
+  # WARNING: For production environments, you should restrict this
+  # to a list of known, trusted IP addresses/ranges for security.
+  # Example: cluster_endpoint_public_access_cidrs = ["${chomp(data.http.my_ip.response_body)}/32"]
+  cluster_endpoint_public_access_cidrs = ["0.0.0.0/0"]
 
   # Use the modern "API" mode for managing access via IAM and Access Entries
   authentication_mode = "API"

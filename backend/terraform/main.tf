@@ -1,3 +1,7 @@
+locals {
+  aws_region = "us-east-1"
+}
+
 terraform {
   required_providers {
     aws = {
@@ -8,7 +12,7 @@ terraform {
 }
 
 provider "aws" {
-  region = "us-east-1"
+  region = local.aws_region
 }
 
 #-----------------------------------------------------------
@@ -54,6 +58,6 @@ output "cluster_endpoint" {
 
 output "configure_kubectl" {
   description = "Run this command to configure kubectl to connect to the cluster."
-  value       = "aws eks update-kubeconfig --region ${provider.aws.region} --name ${module.eks.cluster_name}"
+  value       = "aws eks update-kubeconfig --region ${local.aws_region} --name ${module.eks.cluster_name}"
 }
 
