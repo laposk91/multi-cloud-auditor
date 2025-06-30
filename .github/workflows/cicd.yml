@@ -1,5 +1,3 @@
-# .github/workflows/cicd.yml
-
 name: Continuous Integration and Deployment
 
 on:
@@ -8,50 +6,29 @@ on:
   pull_request:
     branches: [ main ]
 
-env:
-  # The ECR repository you created with Terraform
-  ECR_REPOSITORY: multi-cloud-auditor/backend
-  # The EKS cluster name from your Terraform config
-  EKS_CLUSTER_NAME: auditor-cluster
-  # The AWS region from your Terraform config
-  AWS_REGION: us-east-1
-  # This name must match the 'metadata.name' in your deployment.yml
-  K8S_DEPLOYMENT_NAME: backend-deployment
-
 jobs:
-  # This job runs linters and tests. It runs on every push and PR to main.
+  # This first job for linting and testing remains the same.
   lint-and-test:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.9'
-
       - name: Install dependencies and Run Checks
-        working-directory: ./backend # Assuming your python code is in the 'backend' directory
         run: |
           pip install flake8 pytest
-          # It's good practice to install from requirements first
-          pip install -r requirements.txt
+          pip install -r backend/requirements.txt
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-          # Using `pytest || true` to prevent failure if no tests are found
-          pytest || true
+          pytest
 
-  # This job builds the Docker image and pushes it to ECR.
-  # It only runs on pushes to the main branch, after lint-and-test succeeds.
-  build-and-push:
+  # This is the new job for building and deploying the image.
+  build-and-push-image:
+    # This job will only start after 'lint-and-test' has succeeded.
     needs: lint-and-test
+    # This job only runs on pushes to the 'main' branch, not on pull requests.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    # Only run this job for pushes to the main branch
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    outputs:
-      image_tag: ${{ steps.build-image.outputs.image_tag }}
-      ecr_registry: ${{ steps.build-image.outputs.ecr_registry }}
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -61,7 +38,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: us-east-1
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -70,78 +47,10 @@ jobs:
       - name: Build, tag, and push image to Amazon ECR
         id: build-image
         env:
-          # Use the ECR registry URI from the previous step
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          # Use the Git SHA as the image tag for versioning
+          ECR_REPOSITORY: multi-cloud-auditor/backend
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          # Build and push the docker image
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./backend
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -f backend/Dockerfile ./backend
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          # Set the values as outputs for the next job
-          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
-          echo "ecr_registry=$ECR_REGISTRY" >> $GITHUB_OUTPUT
-
-  # This job deploys the application to the EKS cluster.
-  # It only runs on pushes to the main branch, after build-and-push succeeds.
-  deploy:
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    # Only run this job for pushes to the main branch
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v4
-        id: install
-
-      - name: Configure Kubectl
-        run: aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
-
-      - name: Deploy to EKS
-        env:
-          ECR_REGISTRY: ${{ needs.build-and-push.outputs.ecr_registry }}
-          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
-        run: |
-          # Replace placeholder values in the Kubernetes manifest file.
-          sed -i "s|DOCKER_IMAGE_PLACEHOLDER|$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG|g" k8s/deployment.yml
-          
-          # Apply all manifests in the k8s directory to the cluster.
-          kubectl apply -f k8s/
-          
-          # Wait for the new deployment to be rolled out successfully
-          kubectl rollout status deployment/${{ env.K8S_DEPLOYMENT_NAME }}
-
-                    # Wait for the new deployment to be rolled out successfully.
-          # If it fails, the subsequent commands will run to provide debug info.
-          if ! kubectl rollout status deployment/${{ env.K8S_DEPLOYMENT_NAME }} --timeout=2m; then
-            echo "Deployment failed. Gathering debug information..."
-            
-            # Describe the deployment to see its status and events.
-            kubectl describe deployment/${{ env.K8S_DEPLOYMENT_NAME }}
-            
-            echo "--------------------------------------------------"
-            
-            # Describe the pods to find out why they are not starting.
-            # This is the most important command for debugging this issue.
-            kubectl describe pods -l app=backend
-            
-            echo "--------------------------------------------------"
-
-            # Get the logs from the pods.
-            kubectl logs deployment/${{ env.K8S_DEPLOYMENT_NAME }} --tail=200
-            
-            # Exit with an error code to fail the workflow.
-            exit 1
-          fi
-
-
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
