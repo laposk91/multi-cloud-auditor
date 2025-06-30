@@ -115,11 +115,11 @@ jobs:
         run: |
           # Replace placeholder values in the Kubernetes manifests with the actual values.
           # This is a common pattern for templating manifest files in CI/CD.
-          sed -i "s|DOCKER_IMAGE_PLACEHOLDER|$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG|g" k8s/deployment.yaml
+          sed -i "s|DOCKER_IMAGE_PLACEHOLDER|$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG|g" k8s/deployment.yml
           
           # Apply the manifests to the cluster.
-          # FIX: Use `-f` to apply all YAML files in a directory, which is more robust
-          # than `-k` (kustomize) if you don't have a kustomization.yaml file.
+          # FIX: Use `-f` to apply all YML files in a directory, which is more robust
+          # than `-k` (kustomize) if you don't have a kustomization.yml file.
           kubectl apply -f k8s/
           
           # Wait for the new deployment to be rolled out successfully
