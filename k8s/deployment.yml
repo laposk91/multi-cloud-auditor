@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-deployment
+spec:
+  
+  replicas: 2
+  
+  selector:
+    matchLabels:
+      app: backend
+  
+  template:
+    metadata:
+      labels:
+        app: backend 
+    spec:
+      
+      serviceAccountName: auditor-app-sa
+      containers:
+        - name: backend-container
+          
+          image: YOUR_ECR_REGISTRY_URL/multi-cloud-auditor/backend:latest
+          ports:
+            - containerPort: 5000 
