@@ -121,5 +121,27 @@ jobs:
           # Wait for the new deployment to be rolled out successfully
           kubectl rollout status deployment/${{ env.K8S_DEPLOYMENT_NAME }}
 
+                    # Wait for the new deployment to be rolled out successfully.
+          # If it fails, the subsequent commands will run to provide debug info.
+          if ! kubectl rollout status deployment/${{ env.K8S_DEPLOYMENT_NAME }} --timeout=2m; then
+            echo "Deployment failed. Gathering debug information..."
+            
+            # Describe the deployment to see its status and events.
+            kubectl describe deployment/${{ env.K8S_DEPLOYMENT_NAME }}
+            
+            echo "--------------------------------------------------"
+            
+            # Describe the pods to find out why they are not starting.
+            # This is the most important command for debugging this issue.
+            kubectl describe pods -l app=backend
+            
+            echo "--------------------------------------------------"
+
+            # Get the logs from the pods.
+            kubectl logs deployment/${{ env.K8S_DEPLOYMENT_NAME }} --tail=200
+            
+            # Exit with an error code to fail the workflow.
+            exit 1
+          fi
 
 
