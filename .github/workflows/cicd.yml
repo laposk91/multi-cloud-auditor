@@ -1,3 +1,5 @@
+# .github/workflows/cicd.yml
+
 name: Continuous Integration and Deployment
 
 on:
@@ -13,8 +15,8 @@ env:
   EKS_CLUSTER_NAME: auditor-cluster
   # The AWS region from your Terraform config
   AWS_REGION: us-east-1
-  # The name for your Kubernetes deployment and service
-  K8S_DEPLOYMENT_NAME: multi-cloud-auditor
+  # This name must match the 'metadata.name' in your deployment.yml
+  K8S_DEPLOYMENT_NAME: backend-deployment
 
 jobs:
   # This job runs linters and tests. It runs on every push and PR to main.
@@ -47,7 +49,6 @@ jobs:
     # Only run this job for pushes to the main branch
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     outputs:
-      # FIX: Add ecr_registry to the job outputs
       image_tag: ${{ steps.build-image.outputs.image_tag }}
       ecr_registry: ${{ steps.build-image.outputs.ecr_registry }}
 
@@ -89,7 +90,6 @@ jobs:
     # Only run this job for pushes to the main branch
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
-      # FIX: Added checkout step so the k8s directory is available
       - name: Checkout Code
         uses: actions/checkout@v4
 
@@ -109,20 +109,17 @@ jobs:
 
       - name: Deploy to EKS
         env:
-          # FIX: Reference the new ecr_registry output correctly
           ECR_REGISTRY: ${{ needs.build-and-push.outputs.ecr_registry }}
           IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
         run: |
-          # Replace placeholder values in the Kubernetes manifests with the actual values.
-          # This is a common pattern for templating manifest files in CI/CD.
+          # Replace placeholder values in the Kubernetes manifest file.
           sed -i "s|DOCKER_IMAGE_PLACEHOLDER|$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG|g" k8s/deployment.yml
           
-          # Apply the manifests to the cluster.
-          # FIX: Use `-f` to apply all YML files in a directory, which is more robust
-          # than `-k` (kustomize) if you don't have a kustomization.yml file.
+          # Apply all manifests in the k8s directory to the cluster.
           kubectl apply -f k8s/
           
           # Wait for the new deployment to be rolled out successfully
           kubectl rollout status deployment/${{ env.K8S_DEPLOYMENT_NAME }}
+
 
 
