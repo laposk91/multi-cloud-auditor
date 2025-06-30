@@ -1,15 +1,30 @@
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
-  version = "20.10.0"
+  version = "20.8.4" # Using a slightly newer, compatible version of the module
 
   cluster_name    = "auditor-cluster"
-  cluster_version = "1.32"
+  # NOTE: As of now, 1.30 is the latest supported version.
+  cluster_version = "1.30"
 
   vpc_id     = module.vpc.vpc_id
   subnet_ids = module.vpc.private_subnets
 
-  enable_irsa = true  # Enables IAM Roles for Service Accounts
+  # --- Configuration for Reachability and Access ---
 
+  # Both public and private endpoints are enabled
+  cluster_endpoint_private_access = true
+  cluster_endpoint_public_access  = true
+
+  # IMPORTANT: This now dynamically uses your current IP address from main.tf
+  cluster_endpoint_public_access_cidrs = ["${chomp(data.http.my_ip.response_body)}/32"]
+
+  # Use the modern "API" mode for managing access via IAM and Access Entries
+  authentication_mode = "API"
+
+  # Grant access to the cluster using the local variable defined in aws-auth.tf
+  access_entries = local.access_entries
+
+  # --- Managed Node Group Configuration ---
   eks_managed_node_groups = {
     general_nodes = {
       min_size       = 1
@@ -19,38 +34,8 @@ module "eks" {
   }
 
   tags = {
-    Project   = "Multi-Cloud Auditor"
-    Terraform = "true"
-  }
-}
-# create a complete EKS cluster control plane and worker nodes.
-module "eks" {
-  source  = "terraform-aws-modules/eks/aws"
-  version = "20.10.0" # Using a specific version for consistency
-
-  cluster_name    = "auditor-cluster"
-  cluster_version = "1.29"
-
- # This tells the EKS module to build the cluster inside the VPC we defined above.
-  vpc_id     = module.vpc.vpc_id
-  subnet_ids = module.vpc.private_subnets
-
-  # This enables a critical security feature (IAM Roles for Service Accounts)
-  # that we will use later to give our application pods permissions.
-  cluster_iam_roles_enabled = true
-
-  # This defines the group of EC2 instances that will be our "worker nodes".
-  # These are the servers where our application containers will actually run.
-  eks_managed_node_groups = {
-    general_nodes = {
-      min_size     = 1 # Start with one worker node
-      max_size     = 3 # Allow scaling up to 3 nodes
-      instance_types = ["t3.small"] # A cost-effective instance type for starting out
-    }
-  }
-
-  tags = {
     Project     = "Multi-Cloud Auditor"
     Terraform   = "true"
   }
 }
+
